@@ -1,0 +1,5 @@
+aiogram==2.23.1
+aiohttp
+gspread
+google-auth
+aiogram-calendar
