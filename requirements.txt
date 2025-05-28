@@ -1,5 +1,6 @@
-aiogram==2.23.1
+aiogram==2.25.1
 aiohttp
 gspread
 google-auth
-aiogram-calendar
+google-auth-oauthlib
+google-auth-httplib2
