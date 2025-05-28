@@ -12,7 +12,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from aiogram_calendar import SimpleCalendar, simple_cal_callback
+from aiogram_calendar import SimpleCalendar
+
 
 # FSM
 class BookingStates(StatesGroup):
@@ -52,7 +53,7 @@ async def process_name(message: Message, state: FSMContext):
         reply_markup=await SimpleCalendar().start_calendar()
     )
 
-@dp.callback_query(simple_cal_callback.filter(), BookingStates.waiting_for_date)
+@dp.callback_query_handler(lambda c: c.data.startswith("CALENDAR"), state=BookingStates.waiting_for_date)
 async def process_date(callback_query: CallbackQuery, callback_data: dict, state: FSMContext):
     selected, date = await SimpleCalendar().process_selection(callback_query, callback_data)
     if not selected:
