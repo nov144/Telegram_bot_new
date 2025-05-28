@@ -1,115 +1,95 @@
 import os
-from datetime import datetime
-
-from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram_calendar import SimpleCalendar, simple_cal_callback
-from aiohttp import web
-
-from states import BookingStates
-
 import gspread
+from datetime import datetime
 from google.oauth2.service_account import Credentials
 
-# === Настройки ===
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, CallbackQuery
+from aiogram.enums import ParseMode
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+
+from aiogram_calendar import SimpleCalendar, simple_cal_callback
+
+# FSM
+class BookingStates(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_date = State()
+    waiting_for_phone = State()
+
+# ENV
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # https://yourapp.onrender.com/webhook
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+GOOGLE_CREDS = os.getenv("GOOGLE_CREDS", "credentials.json")
 
-bot = Bot(token=BOT_TOKEN)
+# Bot init
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
+dp = Dispatcher(storage=storage)
 
-# === Google Таблица ===
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-client = gspread.authorize(creds)
-sheet = client.open_by_key("130eO8Wl9ezkXEgbM6CnHt6C2k_lFKYKttbDqfN69mxg").sheet1
+# Google Sheets setup
+scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_file(GOOGLE_CREDS, scopes=scopes)
+gclient = gspread.authorize(creds)
+sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
 
-# === Хендлеры ===
-@dp.message_handler(commands=["start"])
-async def start_handler(message: types.Message):
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(types.KeyboardButton("Записаться"))
-    await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=kb)
-
-@dp.message_handler(lambda msg: msg.text == "Записаться")
-async def ask_name(message: types.Message):
+# Handlers
+@dp.message(F.text == "/start")
+async def cmd_start(message: Message, state: FSMContext):
     await message.answer("Как вас зовут?")
-    await BookingStates.waiting_for_name.set()
+    await state.set_state(BookingStates.waiting_for_name)
 
-@dp.message_handler(state=BookingStates.waiting_for_name)
-async def ask_date(message: types.Message, state: FSMContext):
+@dp.message(BookingStates.waiting_for_name)
+async def process_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
-    await message.answer("Выберите дату:", reply_markup=await SimpleCalendar().start_calendar())
-    await BookingStates.waiting_for_date.set()
+    await message.answer("Выберите дату записи:")
+    await state.set_state(BookingStates.waiting_for_date)
+    await message.answer(
+        "Пожалуйста, выберите дату:",
+        reply_markup=await SimpleCalendar().start_calendar()
+    )
 
-@dp.callback_query_handler(simple_cal_callback.filter(), state=BookingStates.waiting_for_date)
-async def process_calendar(callback: types.CallbackQuery, callback_data: dict, state: FSMContext):
-    selected, date = await SimpleCalendar().process_selection(callback, callback_data)
+@dp.callback_query(simple_cal_callback.filter(), BookingStates.waiting_for_date)
+async def process_date(callback_query: CallbackQuery, callback_data: dict, state: FSMContext):
+    selected, date = await SimpleCalendar().process_selection(callback_query, callback_data)
     if not selected:
         return
     await state.update_data(date=str(date))
-    await callback.message.answer(f"Вы выбрали: {date.strftime('%d.%m.%Y')}")
-    await callback.message.answer("Введите номер телефона:")
-    await BookingStates.waiting_for_phone.set()
+    await callback_query.message.answer(f"Вы выбрали: {date.strftime('%d.%m.%Y')}")
+    await callback_query.answer()
+    await state.set_state(BookingStates.waiting_for_phone)
+    await callback_query.message.answer("Введите номер телефона:")
 
-@dp.message_handler(state=BookingStates.waiting_for_phone)
-async def finalize(message: types.Message, state: FSMContext):
-    await state.update_data(phone=message.text)
+@dp.message(BookingStates.waiting_for_phone)
+async def process_phone(message: Message, state: FSMContext):
+    phone = message.text
+    await state.update_data(phone=phone)
+
     data = await state.get_data()
+    name = data["name"]
+    date = data["date"]
 
-    summary = (
-        f"Запись подтверждена!\n\n"
-        f"Имя: {data['name']}\n"
-        f"Дата: {data['date']}\n"
-        f"Телефон: {data['phone']}"
-    )
+    summary = f"\n\n<b>Запись подтверждена!</b>\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
 
-    # Отправка сообщений
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    sheet.append_row([name, date, phone, timestamp])
+
     await message.answer(summary)
-    await bot.send_message(-1002293928496, summary)  # Владелец/группа
-    await bot.send_message(300466559, summary)        # Личка
+    await bot.send_message(-1002293928496, summary)
+    await state.clear()
 
-    # Сохраняем в Google Таблицу
-    now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    sheet.append_row([data["name"], data["date"], data["phone"], now])
-
-    await state.finish()
-
-# === Webhook-часть ===
-async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL)
-
-async def on_shutdown(app):
-    await bot.delete_webhook()
+# Webhook server
+async def on_startup(_: web.Application):
+    await bot.set_webhook("https://telegram-bot-new-6o20.onrender.com/webhook")
 
 app = web.Application()
-app.router.add_post("/webhook", dp.webhook_handler)
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+setup_application(app, dp, bot=bot)
 app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
 
-from aiogram.utils.executor import start_webhook
-
-WEBHOOK_HOST = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-
-async def on_startup(dp):
-    await bot.set_webhook(WEBHOOK_URL)
-
-async def on_shutdown(dp):
-    await bot.delete_webhook()
-
-if __name__ == "__main__":
-    start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000))
-    )
-
+if __name__ == '__main__':
+    web.run_app(app, port=8000)
 
