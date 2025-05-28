@@ -24,7 +24,7 @@ class BookingStates(StatesGroup):
 # ENV
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
-GOOGLE_CREDS = os.getenv("GOOGLE_CREDS", "credentials.json")
+GOOGLE_CREDS = os.getenv("GOOGLE_CREDS", "credentials.json")  # <-- ЭТУ СТРОКУ НАДО УДАЛИТЬ
 
 # Bot init
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
@@ -33,9 +33,10 @@ dp = Dispatcher(storage=storage)
 
 # Google Sheets setup
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_file(GOOGLE_CREDS, scopes=scopes)
+creds = Credentials.from_service_account_file(GOOGLE_CREDS, scopes=scopes)  # <-- ЭТУ СТРОКУ ЗАМЕНИТЬ
 gclient = gspread.authorize(creds)
 sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
+
 
 # Handlers
 @dp.message(F.text == "/start")
