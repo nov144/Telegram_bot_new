@@ -32,16 +32,12 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # Google Sheets setup
-import json, base64
-
+from google.oauth2.service_account import Credentials
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-creds_b64 = os.getenv("GOOGLE_CREDS_BASE64")
-creds_json = base64.b64decode(creds_b64).decode()
-creds_dict = json.loads(creds_json)
-
-creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+creds = Credentials.from_service_account_file("/etc/secrets/credentials.json", scopes=scopes)
 gclient = gspread.authorize(creds)
 sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
+
 
 
 
