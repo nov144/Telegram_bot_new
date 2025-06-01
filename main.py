@@ -38,7 +38,7 @@ creds = Credentials.from_service_account_file("/etc/secrets/credentials.json", s
 gclient = gspread.authorize(creds)
 # 🔍 Проверка доступа к таблице
 try:
-    spreadsheet = gc.open_by_key("130eO8Wl9ezkXEgbM6CnHt6C2k_lFKYKttbDqfN69mxg")
+    spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
     print("✅ Таблица открыта успешно:", spreadsheet.title)
 except Exception as e:
     print("❌ Ошибка при открытии таблицы:", e)
