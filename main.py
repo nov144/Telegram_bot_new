@@ -36,6 +36,12 @@ from google.oauth2.service_account import Credentials
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("/etc/secrets/credentials.json", scopes=scopes)
 gclient = gspread.authorize(creds)
+# 🔍 Проверка доступа к таблице
+try:
+    spreadsheet = gc.open_by_key("130eO8Wl9ezkXEgbM6CnHt6C2k_lFKYKttbDqfN69mxg")
+    print("✅ Таблица открыта успешно:", spreadsheet.title)
+except Exception as e:
+    print("❌ Ошибка при открытии таблицы:", e)
 sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
 
 
