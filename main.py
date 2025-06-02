@@ -45,7 +45,6 @@ except Exception as e:
     print("❌ Ошибка при настройке Google Sheets:", e)
 
 
-
 # Bot Setup
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
