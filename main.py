@@ -17,23 +17,23 @@ from aiogram_calendar import SimpleCalendar
 from google.oauth2.service_account import Credentials
 
 
-# FSM
+# FSM States
 class BookingStates(StatesGroup):
     waiting_for_name = State()
     waiting_for_date = State()
     waiting_for_phone = State()
 
 
-# ENV
+# ENV Variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Google credentials (base64 -> json)
+# Google Sheets Setup
 creds_json = json.loads(base64.b64decode(os.getenv("GOOGLE_CREDS_BASE64")))
 credentials = Credentials.from_service_account_info(creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"])
 gclient = gspread.authorize(credentials)
 
-# Проверка таблицы
 try:
     spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
     sheet = spreadsheet.sheet1
@@ -42,7 +42,7 @@ except Exception as e:
     print("❌ Ошибка при открытии таблицы:", e)
 
 
-# Bot
+# Bot Setup
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -64,8 +64,12 @@ async def process_name(message: Message, state: FSMContext):
     await state.set_state(BookingStates.waiting_for_date)
 
 
-@router.callback_query(F.data.startswith("CALENDAR"), state=BookingStates.waiting_for_date)
+@router.callback_query(F.data.startswith("CALENDAR"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state != BookingStates.waiting_for_date.state:
+        return
+
     selected, date = await SimpleCalendar().process_selection(callback, callback.data)
     if not selected:
         return
@@ -100,9 +104,7 @@ async def process_phone(message: Message, state: FSMContext):
     await state.clear()
 
 
-# Webhook
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # https://your-bot.onrender.com/webhook
-
+# Webhook Setup
 async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
