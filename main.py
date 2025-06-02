@@ -1,5 +1,4 @@
 import os
-# Вставь прямо после import os
 print("=== START FILE ===")
 
 import gspread
@@ -19,15 +18,6 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiogram_calendar import SimpleCalendar
 from google.oauth2.service_account import Credentials
 
-
-# FSM States
-class BookingStates(StatesGroup):
-    waiting_for_name = State()
-    waiting_for_date = State()
-    waiting_for_phone = State()
-
-
-# ENV Variables
 # ENV Variables
 print("🚀 BOT LAUNCH STARTED")
 
@@ -53,6 +43,13 @@ try:
     print("✅ Таблица открыта успешно:", spreadsheet.title)
 except Exception as e:
     print("❌ Ошибка при настройке Google Sheets:", e)
+
+
+# FSM States
+class BookingStates(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_date = State()
+    waiting_for_phone = State()
 
 
 # Bot Setup
