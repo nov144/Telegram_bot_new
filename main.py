@@ -35,6 +35,7 @@ credentials = Credentials.from_service_account_info(creds_json, scopes=["https:/
 gclient = gspread.authorize(credentials)
 
 try:
+    print("DEBUG SPREADSHEET_ID =", SPREADSHEET_ID)
     spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
     sheet = spreadsheet.sheet1
     print("✅ Таблица открыта успешно:", spreadsheet.title)
