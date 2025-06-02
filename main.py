@@ -1,4 +1,7 @@
 import os
+# Вставь прямо после import os
+print("=== START FILE ===")
+
 import gspread
 from datetime import datetime
 import base64
