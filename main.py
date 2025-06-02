@@ -1,5 +1,3 @@
-raise RuntimeError("👋 Этот файл точно запускается")
-
 import os
 print("=== START FILE ===")
 
