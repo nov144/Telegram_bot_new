@@ -30,17 +30,20 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # Google Sheets Setup
-creds_json = json.loads(base64.b64decode(os.getenv("GOOGLE_CREDS_BASE64")))
-credentials = Credentials.from_service_account_info(creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-gclient = gspread.authorize(credentials)
-
 try:
+    creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
+    print("🔍 GOOGLE_CREDS_BASE64 present:", creds_base64 is not None)
+    creds_json = json.loads(base64.b64decode(creds_base64))
+    credentials = Credentials.from_service_account_info(creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    gclient = gspread.authorize(credentials)
+
     print("DEBUG SPREADSHEET_ID =", SPREADSHEET_ID)
     spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
     sheet = spreadsheet.sheet1
     print("✅ Таблица открыта успешно:", spreadsheet.title)
 except Exception as e:
-    print("❌ Ошибка при открытии таблицы:", e)
+    print("❌ Ошибка при настройке Google Sheets:", e)
+
 
 
 # Bot Setup
