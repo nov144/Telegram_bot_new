@@ -25,9 +25,16 @@ class BookingStates(StatesGroup):
 
 
 # ENV Variables
+# ENV Variables
+print("🚀 BOT LAUNCH STARTED")
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+print("🔑 BOT_TOKEN present:", BOT_TOKEN is not None)
+print("🗂️  SPREADSHEET_ID present:", SPREADSHEET_ID is not None)
+print("🌐 WEBHOOK_URL present:", WEBHOOK_URL is not None)
 
 # Google Sheets Setup
 try:
