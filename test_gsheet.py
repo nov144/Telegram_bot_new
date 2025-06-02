@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
-rint("📎 Открываем таблицу по ссылке: https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID)
+print("📎 Открываем таблицу по ссылке: https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID)
 creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
 
 print("== Google Sheets Test ==")
