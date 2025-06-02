@@ -42,8 +42,6 @@ try:
     print("✅ Таблица открыта успешно:", spreadsheet.title)
 except Exception as e:
     print("❌ Ошибка при открытии таблицы:", e)
-sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
-
 
 
 
