@@ -113,16 +113,16 @@ async def process_phone(message: Message, state: FSMContext):
     await bot.send_message(chat_id=-1002293928496, text=summary)
     await state.clear()
 
+import asyncio  # <-- Добавь к импорту вверху, если еще не добавлен
 
-# Webhook Setup
-async def on_startup(_: web.Application):
-    await bot.set_webhook(WEBHOOK_URL)
 async def print_webhook_info(app: web.Application):
+    await asyncio.sleep(2)  # Ждём 2 секунды, чтобы webhook точно установился
     info = await bot.get_webhook_info()
     print("🌐 Webhook Info:")
     print(f"➡️ URL: {info.url}")
     print(f"📜 Has certificate: {info.has_custom_certificate}")
     print(f"⏳ Pending updates: {info.pending_update_count}")
+
 
 
 app = web.Application()
