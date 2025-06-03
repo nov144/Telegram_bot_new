@@ -1,13 +1,11 @@
 import os
-import json
+import gspread
 import base64
+import json
 from datetime import datetime
+from aiohttp import web
 import asyncio
 
-import gspread
-from google.oauth2.service_account import Credentials
-
-from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
 from aiogram.types import Message, CallbackQuery
@@ -17,28 +15,40 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from aiogram_calendar import SimpleCalendar
+from google.oauth2.service_account import Credentials
 
-# ENV
+print("=== START FILE ===")
+
+# ENV Variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
 
-# Google Sheets
-credentials = Credentials.from_service_account_info(
-    json.loads(base64.b64decode(creds_base64)),
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
-)
-gclient = gspread.authorize(credentials)
-sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
+print("🔑 BOT_TOKEN present:", BOT_TOKEN is not None)
+print("🗂️  SPREADSHEET_ID present:", SPREADSHEET_ID is not None)
+print("🌐 WEBHOOK_URL present:", WEBHOOK_URL is not None)
 
-# FSM
+# Google Sheets Setup
+try:
+    creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
+    print("🔍 GOOGLE_CREDS_BASE64 present:", creds_base64 is not None)
+    creds_json = json.loads(base64.b64decode(creds_base64))
+    credentials = Credentials.from_service_account_info(creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    gclient = gspread.authorize(credentials)
+
+    print("DEBUG SPREADSHEET_ID =", SPREADSHEET_ID)
+    spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
+    sheet = spreadsheet.sheet1
+    print("✅ Таблица открыта успешно:", spreadsheet.title)
+except Exception as e:
+    print("❌ Ошибка при настройке Google Sheets:", e)
+
+
 class BookingStates(StatesGroup):
     waiting_for_name = State()
     waiting_for_date = State()
     waiting_for_phone = State()
 
-# Bot
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -58,12 +68,19 @@ async def process_name(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("CALENDAR"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
-    # Для теста временно убираем проверку FSM-состояния
+    print("📥 Получен callback:", callback.data)
+    current_state = await state.get_state()
+    print("🧭 Состояние FSM:", current_state)
+
+    if current_state != BookingStates.waiting_for_date.state:
+        print("⚠️ Состояние не совпадает, прерываем.")
+        return
+
     selected, date = await SimpleCalendar().process_selection(callback, callback.data)
-    print("DEBUG CALENDAR selected:", selected, date)
+    print("✅ Выбор:", selected, date)
 
     if not selected:
-        await callback.answer()
+        print("🔁 Ожидаем дальнейший выбор.")
         return
 
     await state.update_data(date=str(date))
@@ -81,33 +98,28 @@ async def process_phone(message: Message, state: FSMContext):
     name = data["name"]
     date = data["date"]
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
-    summary = f"Запись подтверждена!\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
+    summary = f"<b>Запись подтверждена!</b>\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
 
     try:
         sheet.append_row([name, date, phone, timestamp])
     except Exception as e:
-        await message.answer(f"Ошибка при записи в таблицу: {e}")
+        await message.answer(f"❌ Ошибка при записи в таблицу: {e}")
         return
 
     await message.answer(summary)
     await bot.send_message(chat_id=-1002293928496, text=summary)
     await state.clear()
 
-# Для отладки — перехватываем все callback
-@router.callback_query()
-async def catch_all_callbacks(callback: CallbackQuery):
-    print("📥 Callback data:", callback.data)
-    await callback.answer()
-
-# Webhook
 async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
 async def print_webhook_info(app: web.Application):
     await asyncio.sleep(2)
     info = await bot.get_webhook_info()
-    print("Webhook:", info.url)
+    print("📬 Webhook Info:")
+    print(f"🔗 URL: {info.url}")
+    print(f"📎 Has certificate: {info.has_custom_certificate}")
+    print(f"⏳ Pending updates: {info.pending_update_count}")
 
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
@@ -117,4 +129,5 @@ app.on_startup.append(print_webhook_info)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
+
 
