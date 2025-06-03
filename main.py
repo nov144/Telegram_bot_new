@@ -117,12 +117,19 @@ async def process_phone(message: Message, state: FSMContext):
 # Webhook Setup
 async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
+async def print_webhook_info(app: web.Application):
+    info = await bot.get_webhook_info()
+    print("🌐 Webhook Info:")
+    print(f"➡️ URL: {info.url}")
+    print(f"📜 Has certificate: {info.has_custom_certificate}")
+    print(f"⏳ Pending updates: {info.pending_update_count}")
 
 
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 app.on_startup.append(on_startup)
+app.on_startup.append(print_webhook_info)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
