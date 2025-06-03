@@ -128,8 +128,9 @@ async def print_webhook_info(app: web.Application):
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
-app.on_startup.append(on_startup)
+app.on_startup.append(set_webhook)
 app.on_startup.append(print_webhook_info)
+
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
