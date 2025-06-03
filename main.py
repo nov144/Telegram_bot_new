@@ -1,3 +1,4 @@
+
 import os
 import json
 import base64
@@ -83,7 +84,10 @@ async def ask_phone(message: Message, state: FSMContext):
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
     sheet.append_row([name, date, phone, timestamp])
-    await message.answer(f"<b>Запись подтверждена!</b>\nИмя: {name}\nДата: {date}\nТелефон: {phone}", parse_mode="HTML")
+    await message.answer(f"<b>Запись подтверждена!</b>
+Имя: {name}
+Дата: {date}
+Телефон: {phone}", parse_mode="HTML")
     await state.clear()
 
 # Webhook init
@@ -97,5 +101,6 @@ app.on_startup.append(on_startup)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
+
 
 
