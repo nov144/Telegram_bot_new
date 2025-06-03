@@ -116,11 +116,13 @@ async def process_phone(message: Message, state: FSMContext):
 
 
 # Webhook Setup
+import asyncio  # убедись, что импорт есть выше
+
 async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
 async def print_webhook_info(app: web.Application):
-    await asyncio.sleep(2)
+    await asyncio.sleep(2)  # даем время на установку webhook
     info = await bot.get_webhook_info()
     print("📬 Webhook Info:")
     print(f"🔗 URL: {info.url}")
@@ -128,7 +130,6 @@ async def print_webhook_info(app: web.Application):
     print(f"⏳ Pending updates: {info.pending_update_count}")
 
 
-# App Init
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
@@ -137,3 +138,4 @@ app.on_startup.append(print_webhook_info)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
+
