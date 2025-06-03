@@ -62,13 +62,13 @@ dp.include_router(router)
 
 
 # Handlers
-@dp.message(F.text == "/start")
+@router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
     await message.answer("Как вас зовут?")
     await state.set_state(BookingStates.waiting_for_name)
 
 
-@dp.message(BookingStates.waiting_for_name)
+@router.message(BookingStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
     await message.answer("Пожалуйста, выберите дату:", reply_markup=await SimpleCalendar().start_calendar())
@@ -92,7 +92,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Введите номер телефона:")
 
 
-@dp.message(BookingStates.waiting_for_phone)
+@router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
     phone = message.text
     await state.update_data(phone=phone)
