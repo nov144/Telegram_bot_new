@@ -68,19 +68,14 @@ async def process_name(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("CALENDAR"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
-    print("📥 Получен callback:", callback.data)
     current_state = await state.get_state()
-    print("🧭 Состояние FSM:", current_state)
-
-    if current_state != BookingStates.waiting_for_date.state:
-        print("⚠️ Состояние не совпадает, прерываем.")
-        return
+    print("📌 Текущее состояние:", current_state)
+    print("📩 Callback data:", callback.data)
 
     selected, date = await SimpleCalendar().process_selection(callback, callback.data)
-    print("✅ Выбор:", selected, date)
+    print("✅ selected =", selected, "📅 date =", date)
 
     if not selected:
-        print("🔁 Ожидаем дальнейший выбор.")
         return
 
     await state.update_data(date=str(date))
