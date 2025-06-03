@@ -131,7 +131,7 @@ async def print_webhook_info(app: web.Application):
 
 
 app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
 setup_application(app, dp, bot=bot)
 app.on_startup.append(on_startup)
 app.on_startup.append(print_webhook_info)
