@@ -70,7 +70,17 @@ async def process_name(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("CALENDAR"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
     current_state = await state.get_state()
+    print(f"📌 Текущее состояние: {current_state}")
+    print(f"📌 Callback data: {callback.data}")
+
+    # Принудительно выставляем состояние, если потеряно
+    if current_state is None:
+        await state.set_state(BookingStates.waiting_for_date)
+        current_state = BookingStates.waiting_for_date.state
+        print("⚠️ Восстановлено состояние: waiting_for_date")
+
     if current_state != BookingStates.waiting_for_date.state:
+        await callback.answer("Неверное состояние, начните сначала.")
         return
 
     selected, date = await SimpleCalendar().process_selection(callback)
@@ -82,6 +92,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.waiting_for_phone)
     await callback.answer()
     await callback.message.answer("Введите номер телефона:")
+
 
 
 @router.message(BookingStates.waiting_for_phone)
