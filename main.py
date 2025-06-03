@@ -84,7 +84,8 @@ async def ask_phone(message: Message, state: FSMContext):
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
     sheet.append_row([name, date, phone, timestamp])
-    await message.answer(f"<b>Запись подтверждена!</b>
+    await message.answer(f"<b>Запись подтверждена!</b>")
+
 Имя: {name}
 Дата: {date}
 Телефон: {phone}", parse_mode="HTML")
