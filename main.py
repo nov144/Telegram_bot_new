@@ -74,7 +74,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Неверное состояние", show_alert=True)
         return
 
-    selected, date = await SimpleCalendar().process_selection(callback)
+    selected, date = await SimpleCalendar().process_selection(callback, callback.data)
     if not selected:
         return
 
