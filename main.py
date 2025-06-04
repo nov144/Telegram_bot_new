@@ -1,30 +1,34 @@
 import os
 import logging
 from aiogram import Bot, Dispatcher, types, F, Router
-from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.web.middlewares import SimpleRequestHandler, setup_application
+from aiogram.client.default import DefaultBotProperties
 from aiohttp import web
 
-# === Логирование ===
+# === Логгирование ===
 logging.basicConfig(level=logging.INFO)
 
-# === Бот и диспетчер ===
-bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# === Инициализация бота ===
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-# === Команда /start ===
+# === Обработчик /start ===
 @router.message(F.text == "/start")
-async def start_cmd(message: types.Message):
+async def start_handler(message: types.Message):
     await message.answer("Привет!")
 
 # === Webhook setup ===
 async def on_startup(bot: Bot):
-    await bot.set_webhook(os.getenv("WEBHOOK_URL"))
+    await bot.set_webhook(WEBHOOK_URL)
 
 async def on_shutdown(bot: Bot):
+    await bot.delete_webhook()
     await bot.session.close()
 
 def setup_app(app: web.Application):
