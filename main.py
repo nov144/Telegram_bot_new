@@ -65,16 +65,25 @@ async def process_name(message: Message, state: FSMContext):
     await message.answer("Пожалуйста, выберите дату:", reply_markup=markup)
     await state.set_state(BookingStates.waiting_for_date)
 
-@router.callback_query(F.data.startswith("CALENDAR"))
+@router.callback_query()
 async def process_date(callback: CallbackQuery, state: FSMContext):
-    selected, date = await SimpleCalendar().process_selection(callback, callback.data)
-    if not selected:
+    current_state = await state.get_state()
+    if current_state != BookingStates.waiting_for_date.state:
+        await callback.answer()
         return
+
+    calendar = SimpleCalendar()
+    selected, date = await calendar.process_selection(callback)
+    if not selected:
+        await callback.answer()
+        return
+
     await state.update_data(date=str(date))
     await callback.message.answer(f"Вы выбрали: {date.strftime('%d.%m.%Y')}")
-    await callback.answer()
     await callback.message.answer("Введите номер телефона:")
     await state.set_state(BookingStates.waiting_for_phone)
+    await callback.answer()
+
 
 @router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
