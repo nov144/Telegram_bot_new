@@ -1,24 +1,26 @@
-import logging
 import os
+import logging
 from datetime import datetime
 
 import gspread
 from google.oauth2.service_account import Credentials
 
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, F, Router, types
+from aiogram.enums import ParseMode
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
     ReplyKeyboardRemove, CallbackQuery
 )
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.enums import ParseMode
-from aiogram import Router
-from aiogram.fsm.state import State, StatesGroup
-from simple_calendar import SimpleCalendar, simple_cal_callback
 from aiogram.client.default import DefaultBotProperties
 
-# === Логи ===
+from aiohttp import web
+
+from simple_calendar import SimpleCalendar, simple_cal_callback
+
+# === Логгирование ===
 logging.basicConfig(level=logging.INFO)
 
 # === Google Sheets ===
@@ -28,7 +30,7 @@ client = gspread.authorize(creds)
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
-# === Бот и диспетчер ===
+# === Бот и Диспетчер ===
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
@@ -40,31 +42,29 @@ class BookingStates(StatesGroup):
     waiting_for_date = State()
     waiting_for_phone = State()
 
-# === /start ===
+# === Команда /start ===
 @router.message(F.text == "/start")
 async def start_handler(message: types.Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Записаться")]],
-        resize_keyboard=True
-    )
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="Записаться")]])
     await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=kb)
 
-# === Запись ===
+# === Запись на имя ===
 @router.message(F.text == "Записаться")
 async def start_booking(message: types.Message, state: FSMContext):
     await state.set_state(BookingStates.waiting_for_name)
     await message.answer("Как вас зовут?")
 
+# === Имя → календарь ===
 @router.message(BookingStates.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
     await state.set_state(BookingStates.waiting_for_date)
     await message.answer("Пожалуйста, выберите дату:", reply_markup=ReplyKeyboardRemove())
-    await message.answer("\U0001F4C5", reply_markup=await SimpleCalendar().start_calendar())
+    await message.answer("📅", reply_markup=await SimpleCalendar().start_calendar())
 
+# === Обработка выбора даты ===
 @router.callback_query(simple_cal_callback.filter(), BookingStates.waiting_for_date)
 async def process_date(callback: CallbackQuery, callback_data: dict, state: FSMContext):
-    logging.info("\U0001F514 Обработчик календаря вызван")
     calendar = SimpleCalendar()
     selected, date = await calendar.process_selection(callback, callback_data)
 
@@ -78,40 +78,38 @@ async def process_date(callback: CallbackQuery, callback_data: dict, state: FSMC
     await state.set_state(BookingStates.waiting_for_phone)
     await callback.answer()
 
+# === Обработка телефона ===
 @router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
     await state.update_data(phone=message.text)
     data = await state.get_data()
-    name = data["name"]
-    date = data["date"]
-    phone = data["phone"]
+    name, date, phone = data["name"], data["date"], data["phone"]
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
     sheet.append_row([name, date, phone, timestamp])
 
     summary = f"Запись подтверждена!\n\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
     await message.answer(summary)
-
     await bot.send_message(-1002293928496, summary)  # группа
     await bot.send_message(300466559, summary)       # мастер
-
     await state.clear()
 
-# === Запуск ===
+# === Webhook запуск ===
+async def on_startup(bot: Bot) -> None:
+    webhook_url = os.getenv("WEBHOOK_URL")
+    await bot.set_webhook(webhook_url)
+
+def setup_application(app: web.Application, dp: Dispatcher):
+    dp.startup.register(on_startup)
+    app["bot"] = bot
+    app["dispatcher"] = dp
+    dp.attach_webhook(app, path="/")
+
+# === Entrypoint ===
+async def main():
+    app = web.Application()
+    setup_application(app, dp)
+    return app
+
 if __name__ == "__main__":
-    import asyncio
-    from aiogram.webhook.aiohttp_server import setup_application
-    from aiohttp import web
-
-    async def main():
-        app = web.Application()
-        app['bot'] = bot
-        await setup_application(app, dp)
-
-        webhook_url = os.getenv("WEBHOOK_URL")
-        await bot.set_webhook(webhook_url)
-
-        logging.info("Starting webhook on /")
-        return app
-
     web.run_app(main())
