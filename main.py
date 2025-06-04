@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
 client = gspread.authorize(creds)
-SPREADSHEET_ID = "130eO8Wl9ezkXEgbM6CnHt6C2k_lFKYKttbDqfN69mxg"
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
 # === Бот и диспетчер ===
