@@ -1,69 +1,66 @@
-import logging
-from aiogram import Bot, Dispatcher, types, F
+import os
+import json
+import base64
+from datetime import datetime
+import asyncio
+
+import gspread
+from google.oauth2.service_account import Credentials
+
+from aiohttp import web
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ParseMode
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, CallbackQuery
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
 from aiogram_calendar import SimpleCalendar
-from aiohttp import web
-import gspread
-from google.oauth2.service_account import Credentials
-import base64
-import json
-import os
 
-# === Настройки ===
+# ENV
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_PATH = "/webhook"
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
 
-# === FSM ===
+# Google Sheets
+credentials = Credentials.from_service_account_info(
+    json.loads(base64.b64decode(creds_base64)),
+    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+gclient = gspread.authorize(credentials)
+sheet = gclient.open_by_key(SPREADSHEET_ID).sheet1
+
+# FSM
 class BookingStates(StatesGroup):
     waiting_for_name = State()
     waiting_for_date = State()
     waiting_for_phone = State()
 
-# === Логгер ===
-logging.basicConfig(level=logging.INFO)
-
-# === Google Sheets через base64 ===
-creds_base64 = os.getenv("GOOGLE_CREDS_BASE64")
-creds_dict = json.loads(base64.b64decode(creds_base64))
-credentials = Credentials.from_service_account_info(creds_dict, scopes=[
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-])
-gc = gspread.authorize(credentials)
-sheet = gc.open_by_key(os.getenv("SHEET_ID")).sheet1
-
-# === Бот и Диспетчер ===
+# Bot
 bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
-router = dp
-
-# === Хэндлеры ===
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+router = Router()
+dp.include_router(router)
 
 @router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
+    await message.answer("Как вас зовут?")
     await state.set_state(BookingStates.waiting_for_name)
-    await message.answer("Введите ваше имя:")
 
 @router.message(BookingStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
+    await message.answer("Пожалуйста, выберите дату:", reply_markup=await SimpleCalendar().start_calendar())
     await state.set_state(BookingStates.waiting_for_date)
-    calendar = SimpleCalendar()
-    await message.answer("Выберите дату:", reply_markup=await calendar.start_calendar())
 
-@router.callback_query(F.data.startswith("simple_calendar"))
+@router.callback_query(F.data.startswith("CALENDAR"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
-    if await state.get_state() != BookingStates.waiting_for_date.state:
-        await callback.answer()
-        return
-
-    calendar = SimpleCalendar()
-    selected, date = await calendar.process_selection(callback)
+    # Для теста временно убираем проверку FSM-состояния
+    selected, date = await SimpleCalendar().process_selection(callback, callback.data)
+    print("DEBUG CALENDAR selected:", selected, date)
 
     if not selected:
         await callback.answer()
@@ -71,39 +68,52 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
 
     await state.update_data(date=str(date))
     await callback.message.answer(f"Вы выбрали: {date.strftime('%d.%m.%Y')}")
-    await callback.message.answer("Введите номер телефона:")
     await state.set_state(BookingStates.waiting_for_phone)
     await callback.answer()
+    await callback.message.answer("Введите номер телефона:")
 
 @router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
-    await state.update_data(phone=message.text)
+    phone = message.text
+    await state.update_data(phone=phone)
     data = await state.get_data()
 
-    # Запись в таблицу
-    sheet.append_row([data["name"], data["date"], data["phone"]])
+    name = data["name"]
+    date = data["date"]
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
-    text = (
-        f"<b>Запись подтверждена!</b>\n\n"
-        f"<b>Имя:</b> {data['name']}\n"
-        f"<b>Дата:</b> {data['date']}\n"
-        f"<b>Телефон:</b> {data['phone']}"
-    )
-    await message.answer(text)
+    summary = f"Запись подтверждена!\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
+
+    try:
+        sheet.append_row([name, date, phone, timestamp])
+    except Exception as e:
+        await message.answer(f"Ошибка при записи в таблицу: {e}")
+        return
+
+    await message.answer(summary)
+    await bot.send_message(chat_id=-1002293928496, text=summary)
     await state.clear()
 
-# === Webhook ===
-async def on_startup(app):
+# Для отладки — перехватываем все callback
+@router.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    print("📥 Callback data:", callback.data)
+    await callback.answer()
+
+# Webhook
+async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
-async def on_shutdown(app):
-    await bot.delete_webhook()
+async def print_webhook_info(app: web.Application):
+    await asyncio.sleep(2)
+    info = await bot.get_webhook_info()
+    print("Webhook:", info.url)
 
 app = web.Application()
-app["bot"] = bot
-dp.startup.register(on_startup)
-dp.shutdown.register(on_shutdown)
-app.router.add_post(WEBHOOK_PATH, dp.webhook_handler())
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
+setup_application(app, dp, bot=bot)
+app.on_startup.append(on_startup)
+app.on_startup.append(print_webhook_info)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
