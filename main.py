@@ -45,7 +45,8 @@ class BookingStates(StatesGroup):
 # === Команда /start ===
 @router.message(F.text == "/start")
 async def start_handler(message: types.Message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="Записаться")]])
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton(text="Записаться"))
     await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=kb)
 
 # === Запись на имя ===
