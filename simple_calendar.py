@@ -1,6 +1,6 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiogram.utils.callback_query import CallbackData  # ✅ ПРАВИЛЬНО в aiogram 3
+from aiogram.utils.callback_data import CallbackData
 import calendar
 from datetime import datetime
 
