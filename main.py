@@ -5,30 +5,33 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import setup_application
 
-# Команда /start
+# Хендлер на /start
 async def handle_start(message: types.Message):
     await message.answer("Привет!")
 
-# Главная async-функция
+# 👇 ДОБАВИ ЭТУ ФУНКЦИЮ
+async def health(request):
+    return web.Response(text="OK")
+
 async def main():
     BOT_TOKEN = os.getenv("BOT_TOKEN")
-    WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Обязательно с /webhook
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL")
     PORT = int(os.getenv("PORT", 8080))
 
     app = web.Application()
+
+    # 👇 Регистрируем /health ручку ДО setup_application
+    app.router.add_get("/health", health)
 
     async with Bot(BOT_TOKEN) as bot:
         dp = Dispatcher()
         dp.message.register(handle_start, Command("start"))
 
-        # Webhook
         async def on_startup(app):
             await bot.set_webhook(WEBHOOK_URL)
-            print("✅ Webhook установлен")
 
         async def on_shutdown(app):
             await bot.delete_webhook()
-            print("🛑 Webhook удалён")
 
         app.on_startup.append(on_startup)
         app.on_shutdown.append(on_shutdown)
