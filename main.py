@@ -39,7 +39,13 @@ class BookingStates(StatesGroup):
     waiting_for_phone = State()
 
 # Bot init
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+from aiogram.client.default import DefaultBotProperties
+
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
