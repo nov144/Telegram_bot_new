@@ -1,5 +1,5 @@
 import logging
-from aiogram import Bot, Dispatcher, F, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import Message, CallbackQuery
@@ -11,12 +11,12 @@ from aiohttp import web
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
-import json
 import base64
+import json
 
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_PATH = "/webhook"
+WEBHOOK_PATH = f"/webhook"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # === FSM ===
@@ -31,8 +31,7 @@ logging.basicConfig(level=logging.INFO)
 # === Google Sheets ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_json = base64.b64decode(os.getenv("GOOGLE_CREDS_BASE64")).decode("utf-8")
-creds_dict = json.loads(creds_json)
-credentials = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_json), scope)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key(os.getenv("SHEET_ID")).sheet1
 
@@ -60,7 +59,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
         return
 
     calendar = SimpleCalendar()
-    selected, date = await calendar.process_selection(callback, callback.data)
+    selected, date = await calendar.process_selection(callback)
 
     if not selected:
         await callback.answer()
