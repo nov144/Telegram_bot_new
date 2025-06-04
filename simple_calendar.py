@@ -1,10 +1,16 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiogram.utils.callback_data import CallbackData
+from aiogram.filters.callback_data import CallbackData
 import calendar
 from datetime import datetime
 
-simple_cal_callback = CallbackData("simple_calendar", "act", "year", "month", "day")
+class SimpleCalCallbackFactory(CallbackData, prefix="simple_calendar"):
+    act: str
+    year: int
+    month: int
+    day: int
+
+simple_cal_callback = SimpleCalCallbackFactory
 
 class SimpleCalendar:
     def __init__(self, min_date: datetime = None, max_date: datetime = None, locale: str = "ru"):
@@ -14,7 +20,7 @@ class SimpleCalendar:
 
     async def start_calendar(self, year: int = datetime.now().year, month: int = datetime.now().month) -> InlineKeyboardMarkup:
         inline_kb = InlineKeyboardMarkup(row_width=7)
-        ignore_callback = simple_cal_callback.new("IGNORE", year, month, 0)
+        ignore_callback = simple_cal_callback(act="IGNORE", year=year, month=month, day=0).pack()
         month_name = datetime(year, month, 1).strftime("%B")
         inline_kb.add(InlineKeyboardButton(f"{month_name} {str(year)}", callback_data=ignore_callback))
 
@@ -32,15 +38,15 @@ class SimpleCalendar:
                     continue
                 row.append(InlineKeyboardButton(
                     str(day),
-                    callback_data=simple_cal_callback.new("DAY", year, month, day)
+                    callback_data=simple_cal_callback(act="DAY", year=year, month=month, day=day).pack()
                 ))
             inline_kb.row(*row)
 
         # Navigation
         inline_kb.row(
-            InlineKeyboardButton("<", callback_data=simple_cal_callback.new("PREV-MONTH", year, month, 1)),
+            InlineKeyboardButton("<", callback_data=simple_cal_callback(act="PREV-MONTH", year=year, month=month, day=1).pack()),
             InlineKeyboardButton(" ", callback_data=ignore_callback),
-            InlineKeyboardButton(">", callback_data=simple_cal_callback.new("NEXT-MONTH", year, month, 1))
+            InlineKeyboardButton(">", callback_data=simple_cal_callback(act="NEXT-MONTH", year=year, month=month, day=1).pack())
         )
 
         return inline_kb
