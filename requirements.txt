@@ -2,6 +2,6 @@ aiogram==3.7.0
 aiohttp==3.9.3
 gspread==5.12.0
 google-auth==2.29.0
-aiogram-calendar==0.6.0
-oauth2client==4.1.3
+aiogram-calendar @ git+https://github.com/LiteeBot/aiogram-calendar.git
+
 
