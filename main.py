@@ -10,10 +10,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
-from aiogram_calendar import SimpleCalendar, simple_cal_callback
 
 from aiogram import Router
 from aiogram.fsm.state import State, StatesGroup
+from simple_calendar import SimpleCalendar, simple_cal_callback
 from aiogram.client.default import DefaultBotProperties
 
 # === Настройка логов ===
