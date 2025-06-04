@@ -1,21 +1,36 @@
-import asyncio
 import os
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # или просто: BOT_TOKEN = "твой_токен"
+# Получаем токены и URL из переменных окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Например: https://mybot.onrender.com/webhook
 
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# Создаём бота и диспетчер
+bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-@dp.message(F.text == "/start")
-async def cmd_start(message: types.Message):
-    await message.answer("Привет! Я бот на aiogram 3.x и использую polling ✅")
+# Хендлер на /start
+@dp.message(Command("start"))
+async def handle_start(message: types.Message):
+    await message.answer("Привет!")
 
-async def main():
-    await dp.start_polling(bot)
+# Настройка aiohttp-сервера
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
 
+async def on_shutdown(app):
+    await bot.delete_webhook()
+
+# Создаём aiohttp-приложение
+app = web.Application()
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+setup_application(app, dp, bot=bot)
+
+# Запуск
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
 
