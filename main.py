@@ -5,18 +5,20 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
+from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.enums import ParseMode
-
-from aiogram import Router
 from aiogram.fsm.state import State, StatesGroup
-from simple_calendar import SimpleCalendar, simple_cal_callback
 from aiogram.client.default import DefaultBotProperties
 
-# === Настройка логов ===
+from simple_calendar import SimpleCalendar, simple_cal_callback
+
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+# === Логирование ===
 logging.basicConfig(level=logging.INFO)
 
 # === Настройки Google Sheets ===
@@ -26,7 +28,7 @@ client = gspread.authorize(creds)
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
-# === Бот и диспетчер ===
+# === Настройки бота ===
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
@@ -38,20 +40,18 @@ class BookingStates(StatesGroup):
     waiting_for_date = State()
     waiting_for_phone = State()
 
-# === /start ===
+# === Команды ===
 @router.message(F.text == "/start")
 async def start_handler(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton("Записаться"))
     await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=kb)
 
-# === Нажатие "Записаться" ===
 @router.message(F.text == "Записаться")
 async def start_booking(message: types.Message, state: FSMContext):
     await state.set_state(BookingStates.waiting_for_name)
     await message.answer("Как вас зовут?")
 
-# === Получение имени ===
 @router.message(BookingStates.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
@@ -59,10 +59,8 @@ async def process_name(message: types.Message, state: FSMContext):
     await message.answer("Пожалуйста, выберите дату:", reply_markup=ReplyKeyboardRemove())
     await message.answer("📅", reply_markup=await SimpleCalendar().start_calendar())
 
-# === Обработка выбора даты ===
 @router.callback_query(simple_cal_callback.filter(), BookingStates.waiting_for_date)
 async def process_date(callback: CallbackQuery, callback_data: dict, state: FSMContext):
-    logging.info("🔔 Обработчик календаря вызван")
     calendar = SimpleCalendar()
     selected, date = await calendar.process_selection(callback, callback_data)
 
@@ -76,7 +74,6 @@ async def process_date(callback: CallbackQuery, callback_data: dict, state: FSMC
     await state.set_state(BookingStates.waiting_for_phone)
     await callback.answer()
 
-# === Обработка телефона и запись ===
 @router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
     await state.update_data(phone=message.text)
@@ -90,13 +87,19 @@ async def process_phone(message: types.Message, state: FSMContext):
 
     summary = f"Запись подтверждена!\n\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
     await message.answer(summary)
-
-    await bot.send_message(-1002293928496, summary)  # группа
-    await bot.send_message(300466559, summary)       # мастер
+    await bot.send_message(-1002293928496, summary)
+    await bot.send_message(300466559, summary)
 
     await state.clear()
 
-# === Запуск ===
+# === Webhook настройка ===
+async def on_startup(app: web.Application):
+    await bot.set_webhook(os.getenv("WEBHOOK_URL"))
+
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
+setup_application(app, dp, bot=bot)
+app.on_startup.append(on_startup)
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(dp.start_polling(bot))
+    web.run_app(app, port=8000)
