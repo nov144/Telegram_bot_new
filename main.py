@@ -106,10 +106,12 @@ def setup_application(app: web.Application, dp: Dispatcher):
     dp.attach_webhook(app, path="/")
 
 # === Entrypoint ===
-async def main():
+# === Entrypoint ===
+async def create_app():
     app = web.Application()
     setup_application(app, dp)
     return app
 
 if __name__ == "__main__":
-    web.run_app(main())
+    web.run_app(create_app())
+
