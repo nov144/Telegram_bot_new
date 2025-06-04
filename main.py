@@ -1,63 +1,108 @@
-import logging
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.enums import ParseMode
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, CallbackQuery
-from aiogram_calendar.simple_calendar import SimpleCalendar, SimpleCalendarCallback
-from aiogram.types import InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.webhook.aiohttp_server import setup_application
-from aiohttp import web
-import asyncio
 import os
+import json
+import base64
+import asyncio
+from datetime import datetime
 
-# FSM состояние
-from aiogram.fsm.state import State, StatesGroup
+from aiohttp import web
+from aiogram import Bot, Dispatcher, F, Router
+from aiogram.enums import ParseMode
+from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram_calendar import SimpleCalendar, SimpleCalAct
+from google.oauth2.service_account import Credentials
+import gspread
+from aiogram.client.default import DefaultBotProperties
 
-class AppointmentState(StatesGroup):
-    choosing_date = State()
 
-# Токен и Webhook
+# ENV
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"https://your-app-name.onrender.com{WEBHOOK_PATH}"
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+GOOGLE_CREDS_BASE64 = os.getenv("GOOGLE_CREDS_BASE64")
 
-# Инициализация
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
+# Google Sheets Setup
+creds_json = json.loads(base64.b64decode(GOOGLE_CREDS_BASE64))
+credentials = Credentials.from_service_account_info(
+    creds_json, scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+gclient = gspread.authorize(credentials)
+spreadsheet = gclient.open_by_key(SPREADSHEET_ID)
+sheet = spreadsheet.sheet1
+
+# FSM
+class BookingStates(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_date = State()
+    waiting_for_phone = State()
+
+# Bot
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
-# Старт
+# Handlers
 @router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
-    await state.set_state(AppointmentState.choosing_date)
-    calendar = SimpleCalendar()
-    markup = await calendar.start_calendar()
-    await message.answer("Выберите дату:", reply_markup=markup)
+    await message.answer("Как вас зовут?")
+    await state.set_state(BookingStates.waiting_for_name)
 
-# Обработка выбора даты
-@router.callback_query(SimpleCalendarCallback.filter())
+@router.message(BookingStates.waiting_for_name)
+async def process_name(message: Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer("Пожалуйста, выберите дату:", reply_markup=await SimpleCalendar().start_calendar())
+    await state.set_state(BookingStates.waiting_for_date)
+
+@router.callback_query(F.data.startswith("simple_calendar"))
 async def process_date(callback: CallbackQuery, state: FSMContext):
-    calendar = SimpleCalendar()
-    selected, date = await calendar.process_selection(callback)
-    if selected:
-        await state.update_data(appointment_date=str(date))
-        await callback.message.answer(f"Вы выбрали дату: {date.strftime('%d.%m.%Y')}")
-        await callback.answer()
+    current_state = await state.get_state()
+    if current_state != BookingStates.waiting_for_date.state:
+        return
 
-# Webhook сервер
-async def on_startup(app: web.Application):
+    calendar = SimpleCalendar()
+    selected, date = await calendar.process_selection(callback, callback.data)
+
+    if not selected:
+        return
+
+    await state.update_data(date=str(date))
+    await callback.message.answer(f"Вы выбрали: {date.strftime('%d.%m.%Y')}")
+    await state.set_state(BookingStates.waiting_for_phone)
+    await callback.answer()
+    await callback.message.answer("Введите номер телефона:")
+
+@router.message(BookingStates.waiting_for_phone)
+async def process_phone(message: Message, state: FSMContext):
+    data = await state.update_data(phone=message.text)
+    data = await state.get_data()
+    name = data["name"]
+    date = data["date"]
+    phone = data["phone"]
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+
+    try:
+        sheet.append_row([name, date, phone, timestamp])
+    except Exception as e:
+        await message.answer(f"Ошибка при записи в таблицу: {e}")
+        return
+
+    summary = f"<b>Запись подтверждена!</b>\nИмя: {name}\nДата: {date}\nТелефон: {phone}"
+    await message.answer(summary)
+    await state.clear()
+
+# Webhook
+async def on_startup(_: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
-def create_app():
-    app = web.Application()
-    setup_application(app, dp, bot=bot)
-    app.on_startup.append(on_startup)
-    return app
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/")
+setup_application(app, dp, bot=bot)
+app.on_startup.append(on_startup)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    app = create_app()
     web.run_app(app, port=8000)
