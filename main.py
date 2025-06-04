@@ -74,7 +74,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Неверное состояние", show_alert=True)
         return
 
-    selected, date = await SimpleCalendar().process_selection(callback, callback.data)
+    selected, date = await SimpleCalendar().process_selection(callback)
     if not selected:
         return
 
@@ -83,6 +83,7 @@ async def process_date(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingStates.waiting_for_phone)
     await callback.answer()
     await callback.message.answer("Введите номер телефона:")
+
 
 @router.message(BookingStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
