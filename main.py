@@ -1,4 +1,9 @@
 import os
+import subprocess
+
+print("📦 Установленные версии пакетов:")
+subprocess.run(["pip", "freeze"])
+
 import json
 import base64
 import gspread
