@@ -20,7 +20,7 @@ from aiogram_calendar import SimpleCalendar
 from google.oauth2.service_account import Credentials
 
 # ENV Variables
-print("\ud83d\ude80 BOT LAUNCH STARTED")
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
